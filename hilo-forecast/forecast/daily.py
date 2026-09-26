@@ -118,17 +118,22 @@ def main(now=None, local=None):
                            format="ISO8601", utc=True).eq(issue).any() if fpath.exists() else False)
     start = core.bin_trailing(T).get(issue, np.nan)
     L = None
-    if done:
-        status.append("already issued")
-    elif np.isnan(start):
-        status.append("no data in the 3 h before issue: forecast skipped")
+    ipath = ARCH / "issues.csv"
+    have_info = (ipath.exists() and pd.to_datetime(pd.read_csv(ipath)["reference_datetime"],
+                                                   format="ISO8601", utc=True).eq(issue).any())
+    if np.isnan(start):
+        status.append("already issued" if done else "no data in the 3 h before issue: forecast skipped")
     else:
         fc, info = core.make_forecast(issue, obs3h, float(start), clim, p)
-        upsert(fpath, fc.round({"mu": 4, "sigma": 4}), ["reference_datetime", "model_id", "datetime"])
-        upsert(ARCH / "issues.csv",
-               pd.DataFrame([{"reference_datetime": issue, **{k: round(v, 4) for k, v in info.items()}}]),
-               ["reference_datetime"])
-        status.append(f"issued (start {start:.2f} °C, 30-day level {info['slow_level']:+.2f} °C)")
+        if not done:
+            upsert(fpath, fc.round({"mu": 4, "sigma": 4}), ["reference_datetime", "model_id", "datetime"])
+            status.append(f"issued (start {start:.2f} °C, 30-day level {info['slow_level']:+.2f} °C)")
+        else:
+            status.append("already issued")
+        if not have_info:   # also fills in forecasts issued before issues.csv existed
+            upsert(ipath, pd.DataFrame([{"reference_datetime": issue,
+                                         **{k: round(v, 4) for k, v in info.items()}}]),
+                   ["reference_datetime"])
 
     # 3. ROMS forecast at the buoy, saved the same day so it can be scored later
     if p.get("buoy_lat") is not None:

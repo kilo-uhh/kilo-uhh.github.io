@@ -302,21 +302,36 @@ function scoreNote() {
     "Dots: live forecasts. Persistence (gray) zigzags because it ignores the daily cycle.";
 }
 
-fetch(DATA_URL, { cache: "no-store" }).then(r => r.json()).then(d => {
-  data = d;
-  document.getElementById("meta").textContent = data.issued
-    ? `Issued ${fmtFull.format(Date.parse(data.issued))} HST · last buoy reading ${fmtFull.format(Date.parse(data.last_observation))} HST`
-    : "No forecast issued yet.";
-  document.getElementById("status").textContent =
-    `Updated ${fmtFull.format(Date.parse(data.generated))} HST · ${data.status.join(" · ")} · ` +
-    `model fit on ${data.model.data_start.slice(0, 10)} to ${data.model.data_end.slice(0, 10)}`;
-  document.getElementById("chart-note").textContent =
-    `Shaded band: 90% range. Dashed line: ${climYears()} average for each date and hour (climatology), smoothed over ±15 days. Times in HST.`;
-  draw(); summary(); drawSkill(); scoresTable(); scoreNote();
-}).catch(() => {
-  document.querySelector(".chart-wrap").innerHTML = '<p class="err">Forecast data could not be loaded.</p>';
+function showError(msg) {
+  document.querySelector(".chart-wrap").innerHTML = `<p class="err">${msg}</p>`;
   document.getElementById("meta").textContent = "";
-});
+}
+
+fetch(DATA_URL, { cache: "no-store" })
+  .then(r => {
+    if (!r.ok) throw new Error(`data file not found (${r.status} at ${new URL(DATA_URL, location.href).pathname})`);
+    return r.json();
+  })
+  .then(d => {
+    data = d;
+    data.live = data.live || {};
+    data.forecast = data.forecast || {};
+    if (typeof Chart === "undefined") throw new Error("chart library did not load");
+    const t = s => s ? fmtFull.format(Date.parse(s)) + " HST" : "unknown";
+    document.getElementById("meta").textContent = data.issued
+      ? `Issued ${t(data.issued)} · last buoy reading ${t(data.last_observation)}`
+      : "No forecast issued yet.";
+    document.getElementById("status").textContent =
+      `Updated ${t(data.generated)} · ${(data.status || []).join(" · ")} · ` +
+      `model fit on ${data.model.data_start.slice(0, 10)} to ${data.model.data_end.slice(0, 10)}`;
+    document.getElementById("chart-note").textContent =
+      `Shaded band: 90% range. Dashed line: ${climYears()} average for each date and hour (climatology), smoothed over ±15 days. Times in HST.`;
+    draw(); summary(); drawSkill(); scoresTable(); scoreNote();
+  })
+  .catch(e => {
+    console.error(e);
+    showError(`Forecast could not be loaded: ${e.message}`);
+  });
 
 document.querySelectorAll(".toggle button").forEach(b => b.addEventListener("click", () => {
   model = b.dataset.model;
