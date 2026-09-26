@@ -68,7 +68,8 @@ def clim_lookup(clim, idx):
 
 def make_forecast(issue, obs3h, start, clim, p):
     """All models for one issue time. obs3h: centered 3-hourly series (history up to issue).
-    start: trailing-bin mean ending at issue. Returns long DataFrame in EFI-style columns."""
+    start: trailing-bin mean ending at issue. Returns (long DataFrame in EFI-style columns,
+    info dict with the starting value, its anomaly and the 30-day level)."""
     tgt = pd.DatetimeIndex([issue + STEP * h for h in LEADS])
     c_mu, c_sd = clim_lookup(clim, tgt)
     ic_mu, _ = clim_lookup(clim, pd.DatetimeIndex([issue - STEP, issue]))
@@ -94,7 +95,8 @@ def make_forecast(issue, obs3h, start, clim, p):
     rows = [pd.DataFrame({"reference_datetime": issue, "datetime": tgt, "lead_h": LEADS * 3,
                           "model_id": m, "family": "normal", "mu": mu, "sigma": sd})
             for m, (mu, sd) in models.items()]
-    return pd.concat(rows, ignore_index=True), L
+    info = {"start": float(start), "anom_start": float(anom_ic), "slow_level": L}
+    return pd.concat(rows, ignore_index=True), info
 
 
 def crps_normal(o, m, s):

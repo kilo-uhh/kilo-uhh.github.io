@@ -123,9 +123,12 @@ def main(now=None, local=None):
     elif np.isnan(start):
         status.append("no data in the 3 h before issue: forecast skipped")
     else:
-        fc, L = core.make_forecast(issue, obs3h, float(start), clim, p)
+        fc, info = core.make_forecast(issue, obs3h, float(start), clim, p)
         upsert(fpath, fc.round({"mu": 4, "sigma": 4}), ["reference_datetime", "model_id", "datetime"])
-        status.append(f"issued (start {start:.2f} °C, 30-day level {L:+.2f} °C)")
+        upsert(ARCH / "issues.csv",
+               pd.DataFrame([{"reference_datetime": issue, **{k: round(v, 4) for k, v in info.items()}}]),
+               ["reference_datetime"])
+        status.append(f"issued (start {start:.2f} °C, 30-day level {info['slow_level']:+.2f} °C)")
 
     # 3. ROMS forecast at the buoy, saved the same day so it can be scored later
     if p.get("buoy_lat") is not None:
@@ -148,14 +151,16 @@ def main(now=None, local=None):
         allfc = pd.read_csv(fpath)
         for k in ["reference_datetime", "datetime"]:
             allfc[k] = pd.to_datetime(allfc[k], format="ISO8601", utc=True)
-    scores = []
+    live = {}
     if allfc is not None:
         sc = allfc.merge(obs.rename(columns={"observation": "obs"}), on="datetime")
         sc = sc[sc["reference_datetime"] >= issue - pd.Timedelta(days=SCORE_WINDOW_DAYS)]
         sc["crps"] = core.crps_normal(sc["obs"], sc["mu"], sc["sigma"])
-        for (m, h), g in sc[sc.lead_h.isin([3, 24, 72, 168])].groupby(["model_id", "lead_h"]):
-            scores.append({"model_id": m, "lead_h": int(h), "crps": round(g.crps.mean(), 3),
-                           "n": int(len(g))})
+        leads_h = core.LEADS * 3
+        for m, g in sc.groupby("model_id"):
+            agg = g.groupby("lead_h")["crps"].agg(["mean", "count"]).reindex(leads_h)
+            live[m] = {"crps": [None if pd.isna(v) else round(v, 4) for v in agg["mean"]],
+                       "n": agg["count"].fillna(0).astype(int).tolist()}
 
     # 5. Page data
     cur = allfc[allfc.reference_datetime == allfc.reference_datetime.max()] if allfc is not None else None
@@ -169,9 +174,19 @@ def main(now=None, local=None):
         "forecast": {m: [[iso(r.datetime), round(r.mu, 3), round(r.mu - Z90 * r.sigma, 3),
                           round(r.mu + Z90 * r.sigma, 3)] for r in g.itertuples()]
                      for m, g in cur.groupby("model_id")} if cur is not None else {},
-        "scores": scores, "score_window_days": SCORE_WINDOW_DAYS,
+        "live": live, "score_window_days": SCORE_WINDOW_DAYS,
+        "first_issued": iso(allfc.reference_datetime.min()) if allfc is not None else None,
+        "benchmark": (json.loads((HERE / "benchmark.json").read_text())
+                      if (HERE / "benchmark.json").exists() else None),
         "model": {k: p[k] for k in ["phi", "phi_f", "data_start", "data_end", "calibrated_on"]},
     }
+    ip = ARCH / "issues.csv"
+    if ip.exists() and out["issued"]:
+        ii = pd.read_csv(ip)
+        ii["reference_datetime"] = pd.to_datetime(ii["reference_datetime"], format="ISO8601", utc=True)
+        row = ii[ii.reference_datetime == pd.Timestamp(out["issued"])]
+        if len(row):
+            out["issue_info"] = {k: float(row.iloc[0][k]) for k in ["start", "anom_start", "slow_level"]}
     rp = ARCH / "roms.csv"
     if rp.exists() and out["issued"]:
         rr = pd.read_csv(rp)
