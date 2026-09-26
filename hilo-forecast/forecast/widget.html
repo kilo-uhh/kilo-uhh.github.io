@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hilo Bay Forecast</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --surface: #fcfcfb; --text: #0b0b0b; --text-2: #52514e; --muted: #8a8984;
+    --grid: #e7e6e2; --border: #dcdbd6;
+    --series-1: #2a78d6; --series-1-band: rgba(42,120,214,0.16); --series-2: #eb6834;
+    --obs: #52514e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface: #1a1a19; --text: #ffffff; --text-2: #c3c2b7; --muted: #8f8e87;
+      --grid: #2e2e2c; --border: #3a3a37;
+      --series-1: #3987e5; --series-1-band: rgba(57,135,229,0.22); --series-2: #d95926;
+      --obs: #c3c2b7;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface: #1a1a19; --text: #ffffff; --text-2: #c3c2b7; --muted: #8f8e87;
+    --grid: #2e2e2c; --border: #3a3a37;
+    --series-1: #3987e5; --series-1-band: rgba(57,135,229,0.22); --series-2: #d95926;
+    --obs: #c3c2b7;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface); color: var(--text);
+         font: 15px/1.5 "Public Sans", system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 20px 16px 32px; }
+  .eyebrow { font: 500 12px "IBM Plex Mono", monospace; letter-spacing: .06em;
+             text-transform: uppercase; color: var(--text-2); margin: 0 0 4px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  .meta { color: var(--text-2); font-size: 13px; margin: 0 0 16px; }
+  .toggle { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .toggle button { font: 13px "Public Sans", sans-serif; padding: 6px 10px; cursor: pointer;
+                   border: 1px solid var(--border); border-radius: 6px;
+                   background: transparent; color: var(--text-2); }
+  .toggle button[aria-pressed="true"] { color: var(--text); border-color: var(--text-2); font-weight: 600; }
+  .chart-wrap { position: relative; height: 340px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 28px 0 6px; }
+  .note { color: var(--text-2); font-size: 13px; margin: 0 0 10px; }
+  .table-scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--text-2); font-weight: 600; }
+  td { font-family: "IBM Plex Mono", monospace; }
+  .status { font: 12px "IBM Plex Mono", monospace; color: var(--muted); margin-top: 20px; }
+  .err { color: var(--text-2); padding: 40px 0; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Near-term forecast · PacIOOS wqb_04</p>
+  <h1>Hilo Bay water temperature, next 7 days</h1>
+  <p class="meta" id="meta">Loading…</p>
+
+  <div class="toggle" role="group" aria-label="Forecast model">
+    <button data-model="anomaly_ar1" aria-pressed="true">Anomaly model (tested)</button>
+    <button data-model="anomaly_slow" aria-pressed="false">+ 30-day level (experimental)</button>
+  </div>
+  <div class="chart-wrap"><canvas id="chart" aria-label="Observed and forecast water temperature"></canvas></div>
+  <p class="note">Shaded band: 90% range. Dashed line: usual temperature for the date and hour. Times in HST.</p>
+
+  <h2>How the forecast has done</h2>
+  <p class="note" id="score-note"></p>
+  <div class="table-scroll"><table id="scores"></table></div>
+  <p class="status" id="status"></p>
+</main>
+
+<script>
+const DATA_URL = "site/latest.json";   // relative to this page
+const HST = { timeZone: "Pacific/Honolulu" };
+const fmtDay = new Intl.DateTimeFormat("en-US", { ...HST, weekday: "short", month: "short", day: "numeric" });
+const fmtFull = new Intl.DateTimeFormat("en-US", { ...HST, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+// Break the line where readings are missing for more than one 3-hour step
+const pts = rows => rows.flatMap((r, i) => {
+  const x = Date.parse(r[0]), p = { x, y: r[1] };
+  return i && x - Date.parse(rows[i - 1][0]) > 3 * 3600e3 ? [{ x: x - 1, y: null }, p] : [p];
+});
+const MODEL_NAMES = { anomaly_ar1: "Anomaly model", anomaly_slow: "+ 30-day level",
+                      persistence: "Persistence", climatology: "Climatology" };
+let data, chart, model = "anomaly_ar1";
+
+function datasets() {
+  const f = data.forecast[model] || [];
+  const ds = [
+    { label: "Observed", data: pts(data.observations), borderColor: css("--obs"),
+      backgroundColor: css("--obs"), borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4 },
+    { label: "_lo", data: f.map(r => ({ x: Date.parse(r[0]), y: r[2] })), borderWidth: 0, pointRadius: 0 },
+    { label: "_hi", data: f.map(r => ({ x: Date.parse(r[0]), y: r[3] })), borderWidth: 0, pointRadius: 0,
+      fill: 1, backgroundColor: css("--series-1-band") },
+    { label: "Forecast", data: pts(f), borderColor: css("--series-1"), backgroundColor: css("--series-1"),
+      borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 },
+    { label: "Usual for date", data: pts(data.forecast.climatology || []), borderColor: css("--muted"),
+      borderDash: [4, 4], borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 3 },
+  ];
+  if (data.roms && data.roms.length)
+    ds.push({ label: "ROMS", data: pts(data.roms), borderColor: css("--series-2"),
+              backgroundColor: css("--series-2"), borderWidth: 2, pointRadius: 0, pointHoverRadius: 4 });
+  return ds;
+}
+
+function draw() {
+  const issued = Date.parse(data.issued);
+  const opts = {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: "nearest", axis: "x", intersect: false },
+    scales: {
+      x: { type: "linear", grid: { color: css("--grid") }, border: { color: css("--border") },
+           ticks: { color: css("--text-2"), stepSize: 86400000, maxRotation: 0, autoSkip: true,
+                    callback: v => fmtDay.format(v) } },
+      y: { grid: { color: css("--grid") }, border: { display: false },
+           ticks: { color: css("--text-2"), callback: v => v.toFixed(1) + "°" },
+           title: { display: true, text: "°C", color: css("--text-2") } },
+    },
+    plugins: {
+      legend: { labels: { color: css("--text-2"), boxWidth: 14, boxHeight: 2,
+                          filter: i => !i.text.startsWith("_") } },
+      tooltip: { filter: i => !i.dataset.label.startsWith("_"),
+                 callbacks: { title: i => fmtFull.format(i[0].parsed.x),
+                              label: i => `${i.dataset.label}: ${i.parsed.y.toFixed(2)} °C` } },
+    },
+  };
+  const issueLine = { id: "issueLine", afterDraw(c) {
+    const x = c.scales.x.getPixelForValue(issued), a = c.chartArea;
+    if (x < a.left || x > a.right) return;
+    const g = c.ctx; g.save(); g.strokeStyle = css("--muted"); g.setLineDash([2, 3]);
+    g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.stroke();
+    g.fillStyle = css("--text-2"); g.font = "11px 'IBM Plex Mono', monospace";
+    g.fillText("issued", x + 4, a.top + 12); g.restore(); } };
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("chart"), { type: "line", data: { datasets: datasets() },
+                                                        options: opts, plugins: [issueLine] });
+}
+
+function scoresTable() {
+  const leads = [3, 24, 72, 168], lab = { 3: "3 h", 24: "1 day", 72: "3 days", 168: "7 days" };
+  const get = (m, h) => data.scores.find(s => s.model_id === m && s.lead_h === h);
+  const models = ["anomaly_ar1", "anomaly_slow", "persistence", "climatology"];
+  let html = "<thead><tr><th>Model</th>" + leads.map(h => `<th>${lab[h]}</th>`).join("") + "</tr></thead><tbody>";
+  for (const m of models) {
+    html += `<tr><td>${MODEL_NAMES[m]}</td>` + leads.map(h => {
+      const s = get(m, h), c = get("climatology", h);
+      if (!s) return "<td>–</td>";
+      const sk = (m !== "climatology" && c) ? ` (${((1 - s.crps / c.crps) * 100).toFixed(0)}%)` : "";
+      return `<td>${s.crps.toFixed(2)}${sk}</td>`;
+    }).join("") + "</tr>";
+  }
+  document.getElementById("scores").innerHTML = html + "</tbody>";
+  const n = (get("anomaly_ar1", 168) || {}).n || 0;
+  document.getElementById("score-note").textContent =
+    `Typical miss (CRPS, °C) over the last ${data.score_window_days} days; lower is better. ` +
+    `In brackets: how much smaller the miss is than "usual for the date". ` +
+    (n < 30 ? `Only ${n} scored 7-day forecasts so far, so treat these as early.` : `${n} scored 7-day forecasts.`);
+}
+
+fetch(DATA_URL, { cache: "no-store" }).then(r => r.json()).then(d => {
+  data = d;
+  document.getElementById("meta").textContent = data.issued
+    ? `Issued ${fmtFull.format(Date.parse(data.issued))} HST · last buoy reading ${fmtFull.format(Date.parse(data.last_observation))} HST`
+    : "No forecast issued yet.";
+  document.getElementById("status").textContent =
+    `Updated ${fmtFull.format(Date.parse(data.generated))} HST · ${data.status.join(" · ")} · ` +
+    `model fit on ${data.model.data_start.slice(0, 10)} to ${data.model.data_end.slice(0, 10)}`;
+  draw(); scoresTable();
+}).catch(() => {
+  document.querySelector(".chart-wrap").innerHTML = '<p class="err">Forecast data could not be loaded.</p>';
+  document.getElementById("meta").textContent = "";
+});
+
+document.querySelectorAll(".toggle button").forEach(b => b.addEventListener("click", () => {
+  model = b.dataset.model;
+  document.querySelectorAll(".toggle button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  draw();
+}));
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => data && draw());
+</script>
+</body>
+</html>
