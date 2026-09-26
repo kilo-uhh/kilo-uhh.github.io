@@ -71,6 +71,28 @@
         <figcaption class="art-credit">Credit: NASA GSFC / STELLA</figcaption>
       </figure>
     </div>
+
+    <!-- Project 3: Hilo Bay forecast (full width; updated daily by a GitHub Action) -->
+    <div class="q-block" id="forecast">
+      <div class="copy">
+        <h3>Hilo Bay water temperature forecast</h3>
+        <p>A daily 7-day forecast of water temperature at the PacIOOS Hilo Bay buoy, scored against simple baselines and the ROMS ocean model as new observations arrive.</p>
+        <div class="tools">
+          <span class="chip">ecological forecasting</span><span class="chip">PacIOOS</span>
+          <span class="chip">water temperature</span><span class="chip">ROMS</span>
+        </div>
+      </div>
+      <iframe id="hilo-forecast" src="hilo-forecast/forecast/widget.html?embed"
+              title="Hilo Bay water temperature forecast" loading="lazy"
+              style="width:100%;height:760px;border:0;margin-top:1.25rem;display:block"></iframe>
+      <script>
+        // Grow the frame to fit the forecast so it never shows its own scrollbar
+        addEventListener("message", e => {
+          const h = e.data && e.data.hiloForecastHeight;
+          if (h) document.getElementById("hilo-forecast").style.height = (h + 8) + "px";
+        });
+      </script>
+    </div>
   </div>
 </section>
 

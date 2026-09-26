@@ -55,6 +55,10 @@
   td { font-family: "IBM Plex Mono", monospace; }
   .status { font: 12px "IBM Plex Mono", monospace; color: var(--muted); margin-top: 20px; }
   .err { color: var(--text-2); padding: 40px 0; }
+  /* Embedded in the lab site (widget.html?embed): the page supplies the heading */
+  body.embed { background: transparent; }
+  body.embed main { padding: 0; max-width: none; }
+  body.embed .eyebrow, body.embed h1 { display: none; }
 </style>
 </head>
 <body>
@@ -77,6 +81,14 @@
 </main>
 
 <script>
+// ?embed: light theme to match the site, no heading, and report height to the parent page
+const EMBED = new URLSearchParams(location.search).has("embed");
+if (EMBED) {
+  document.documentElement.dataset.theme = "light";
+  document.body.classList.add("embed");
+  new ResizeObserver(() => parent.postMessage(
+    { hiloForecastHeight: document.documentElement.scrollHeight }, "*")).observe(document.body);
+}
 const DATA_URL = "site/latest.json";   // relative to this page
 const HST = { timeZone: "Pacific/Honolulu" };
 const fmtDay = new Intl.DateTimeFormat("en-US", { ...HST, weekday: "short", month: "short", day: "numeric" });
