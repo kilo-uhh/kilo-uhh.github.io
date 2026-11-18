@@ -110,6 +110,15 @@ body.print .printview{display:block;padding:20px}
   .printview{padding:0}
   @page{size:letter;margin:.4in}
 }
+/* directions modal */
+.modal{position:fixed;inset:0;background:rgba(19,35,43,.55);display:none;align-items:flex-start;justify-content:center;z-index:50;overflow:auto;padding:4vh 14px}
+.modal.open{display:flex}
+.modal .sheet{background:var(--paper);border-radius:16px;max-width:760px;width:100%;padding:22px 24px;position:relative;font-size:17px}
+.modal h2{font-size:30px;margin-bottom:6px}
+.modal h3{font-size:20px;margin:16px 0 4px}
+.modal ul,.modal ol{margin:4px 0;padding-left:22px}
+.modal li{margin:3px 0}
+.modal .x{position:absolute;top:14px;right:14px}
 /* landing + network */
 .landing{max-width:720px;margin:8vh auto;padding:0 20px}
 .landing h1{font-size:48px;margin-bottom:6px}
@@ -136,6 +145,42 @@ body.print .printview{display:block;padding:20px}
 <body>
 <div class="wrap" id="app"></div>
 <div class="printview" id="printview"></div>
+<!-- DIRECTIONS: edit the text in this block freely -->
+<div class="modal" id="howto" role="dialog" aria-modal="true" aria-labelledby="howtoTitle"><div class="sheet">
+  <button class="small x" data-h="close">Close</button>
+  <h2 id="howtoTitle">How to play</h2>
+  <p>You are the DAR reef response office, caring for 10 coral restoration sites around Hawaiʻi Island. Events arrive by chance. Respond to each one and leave the reef stronger for the next. If 4 sites are lost, the whole office loses.</p>
+  <h3>Teams and sites</h3>
+  <ul>
+    <li><b>Bleaching Response</b> owns the <b>Shallow</b> sites, hit by marine heatwaves.</li>
+    <li><b>Storm Response</b> owns the <b>Exposed</b> sites, hit by swells, Kona storms and hurricanes.</li>
+    <li><b>Land-Based Pollution Response</b> owns the <b>Runoff</b> sites, hit by floods and storm rain.</li>
+    <li><b>Puakō</b> has all three traits and is shared by every team.</li>
+  </ul>
+  <h3>Each round</h3>
+  <ol>
+    <li><b>Draw:</b> an event card is revealed.</li>
+    <li><b>Huddle:</b> your team decides what to ask for and picks a rep.</li>
+    <li><b>Office meeting:</b> reps divide the budget and must reach consensus. Default: 6 tokens to the team hit, 1 to each other team. No consensus means the default applies and each team loses 1 token.</li>
+    <li><b>Place resources:</b> spend your tokens on any site from your team's device.</li>
+    <li><b>Results:</b> damage is applied. Unspent tokens go to the office reserve.</li>
+  </ol>
+  <h3>Spending tokens</h3>
+  <ul>
+    <li><b>Respond (1):</b> blocks 1 damage at a site hit this round.</li>
+    <li><b>Resilience (1):</b> adds a ◆ that lowers every future hit at that site by 1 (max 2).</li>
+    <li><b>Restore (2):</b> raises a site one health level after the round. Lost sites cannot be restored.</li>
+  </ul>
+  <h3>Damage</h3>
+  <ul>
+    <li>Sites go Healthy → Stressed → Degraded → Lost, one level per point of damage.</li>
+    <li>+1 if two or more of a site's traits are hit at once.</li>
+    <li>+1 in a heatwave at a Runoff site with no resilience.</li>
+    <li>In a calm season, sites with resilience recover one level.</li>
+  </ul>
+  <h3>Winning</h3>
+  <p>If the reef survives every round, the team with the healthiest sites (its own plus Puakō) wins.</p>
+</div></div>
 <script>
 const TEAMS={
   B:{name:'Bleaching Response',short:'Bleaching',trait:'Shallow'},
@@ -399,6 +444,7 @@ function render(){
    <span class="hstat ${lost>=S.settings.threshold-1?'danger':''}">Sites lost <b>${lost}</b> / ${S.settings.threshold}</span>
    <span class="hstat">Reserve <b>${S.reserve}</b></span>
    <span class="spacer"></span>
+   <button class="small noprint" data-h="open">How to play</button>
    <button class="small noprint" data-a="undo" ${history.length?'':'disabled'}>Undo</button>
    <button class="small noprint" data-a="print">Printable site cards</button></header>
   <div class="phases">${PHASES.map((x,i)=>`<span class="ph ${i===pi?'on':i<pi?'done':''}">${i+1}. ${x[1]}</span>`).join('')}</div>
@@ -541,7 +587,8 @@ function renderTeam(){
     <p class="note">Sites lost: ${lostCount()} / ${S.settings.threshold} · Office reserve: ${S.reserve}</p>`;
   }
   app.innerHTML=`<div class="tv"><div class="band" style="background:${TEAMCOL[t]}"><h1>${TEAMS[t].name}</h1>
-    <div class="sub"><span>Game ${NET.code}</span><span>${NET.status==='online'?'● connected':'○ '+NET.status}</span></div></div><div class="body">${body}</div></div>`;
+    <div class="sub"><span>Game ${NET.code}</span><span>${NET.status==='online'?'● connected':'○ '+NET.status}</span>
+    <button class="small" data-h="open" style="margin-left:auto;background:transparent;color:#fff;border-color:#fff">How to play</button></div></div><div class="body">${body}</div></div>`;
 }
 
 /* ---------- landing ---------- */
@@ -549,6 +596,7 @@ function renderLanding(){
   const q=new URLSearchParams(location.search);
   document.getElementById('app').innerHTML=`<div class="landing"><h1>Reef Response Office</h1>
    <p class="note">MARE 140 · Hawaiʻi Island reef restoration game</p>
+   <button data-h="open" style="margin-top:6px">How to play</button>
    <div class="box"><h2 style="font-size:26px">Join as a team</h2>
     <label>Game code<input id="jcode" maxlength="4" autocomplete="off" value="${(q.get('code')||'').replace(/[^A-Za-z0-9]/g,'').slice(0,4)}" placeholder="ABCD"></label>
     <label>Your team<select id="jteam">${'BSP'.split('').map(t=>`<option value="${t}" ${q.get('team')===t?'selected':''}>${TEAMS[t].name}</option>`).join('')}</select></label>
@@ -557,7 +605,11 @@ function renderLanding(){
     <button data-l="host">Host the game</button></div></div>`;
 }
 
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('howto').classList.remove('open')});
 document.addEventListener('click',e=>{
+  const h=e.target.closest('[data-h]');const m=document.getElementById('howto');
+  if(h){m.classList.toggle('open',h.dataset.h==='open');return}
+  if(e.target===m){m.classList.remove('open');return}
   const l=e.target.closest('[data-l]');
   if(l){if(l.dataset.l==='host')startHost();
     else{const code=document.getElementById('jcode').value.trim().toUpperCase();const team=document.getElementById('jteam').value;
