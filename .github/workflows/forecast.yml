@@ -3,6 +3,8 @@ name: Hilo Bay forecast
 on:
   schedule:
     - cron: "15 2 * * *"      # 02:15 UTC = 4:15 PM HST, after the 00 UTC issue time
+    - cron: "15 6 * * *"      # backup on a fresh runner in case the first couldn't reach ERDDAP;
+                              # daily.py won't re-issue a forecast that's already archived
   workflow_dispatch:          # "Run workflow" button for manual runs
 
 permissions:
@@ -19,6 +21,7 @@ concurrency:
 jobs:
   forecast:
     runs-on: ubuntu-latest
+    timeout-minutes: 30         # a stalled ERDDAP fetch fails here instead of hanging for hours
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

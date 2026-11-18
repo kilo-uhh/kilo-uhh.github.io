@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reef Response Office · MARE 140</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js"></script>
+<style>
+:root{
+  --sand:#f4efe4; --paper:#fffdf8; --ink:#13232b; --muted:#5b6a70; --line:#d9d1bf;
+  --sea:#cfe6ea; --land:#e6dcc5; --landline:#b9ab8c;
+  --h3:#2a9d8f; --h2:#e3b23c; --h1:#e07a3f; --h0:#7a7a7a;
+  --B:#c8553d; --S:#2f6690; --P:#8a6a2f; --X:#6b5b95;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--sand);color:var(--ink);font:18px/1.4 "IBM Plex Sans",system-ui,sans-serif}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;margin:0}
+button{font:inherit;cursor:pointer;border-radius:10px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);padding:.45em .9em;font-weight:600}
+button:hover:not(:disabled){background:#fff3d6}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.primary{background:var(--ink);color:var(--paper)}
+button.primary:hover:not(:disabled){background:#24414d}
+button.small{font-size:15px;padding:.3em .6em;border-width:1.5px;border-radius:8px}
+.wrap{max-width:1800px;margin:0 auto;padding:18px 24px 40px}
+header{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:14px}
+header h1{font-size:34px;font-weight:800;letter-spacing:-.01em}
+.hstat{background:var(--paper);border:2px solid var(--line);border-radius:12px;padding:6px 14px;font-weight:600}
+.hstat b{font-size:24px;font-family:Fraunces,serif}
+.hstat.danger{border-color:var(--h1)}
+.spacer{flex:1}
+.phases{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+.ph{padding:6px 14px;border-radius:999px;background:var(--paper);border:2px solid var(--line);color:var(--muted);font-weight:600;font-size:16px}
+.ph.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.ph.done{color:var(--ink)}
+.top{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}
+.panel{background:var(--paper);border:2px solid var(--line);border-radius:16px;padding:18px 20px}
+.map svg{width:100%;height:auto;display:block}
+.map .lbl{font:600 17px "IBM Plex Sans",sans-serif;fill:var(--ink);paint-order:stroke;stroke:var(--sea);stroke-width:5px}
+.map .dmg{font:800 18px Fraunces,serif;fill:#fff}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:15px;color:var(--muted);margin-top:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dot{width:14px;height:14px;border-radius:50%;display:inline-block;border:2px solid var(--ink)}
+.event{border-radius:14px;padding:16px 18px;color:#fff;margin-bottom:14px}
+.event h2{font-size:34px;font-weight:800}
+.event .who{font-weight:600;opacity:.9;text-transform:uppercase;letter-spacing:.06em;font-size:14px}
+.event ul{margin:8px 0 0;padding-left:20px}
+.event.calm{background:#3f7d6e}
+.timer{display:flex;align-items:center;gap:10px;margin:10px 0 14px;flex-wrap:wrap}
+.timer .t{font:800 46px Fraunces,serif;min-width:150px}
+.timer .t.out{color:var(--h1)}
+.alloc{display:grid;grid-template-columns:auto 1fr auto;gap:10px 14px;align-items:center;margin:10px 0}
+.alloc .nm{font-weight:700}
+.alloc .ctr{display:flex;align-items:center;gap:8px}
+.alloc .ctr b{font:800 30px Fraunces,serif;min-width:40px;text-align:center}
+.pool{font-weight:600;color:var(--muted);margin:6px 0 12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.teamchip{border-width:3px}
+.teamchip.on{color:#fff}
+.note{color:var(--muted);font-size:16px}
+.log{margin:8px 0;padding-left:20px;max-height:360px;overflow:auto}
+.log li{margin:3px 0}
+.groups{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px}
+.group h3{font-size:20px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.group h3 .sw{width:14px;height:14px;border-radius:4px;display:inline-block}
+.card{background:var(--paper);border:2px solid var(--line);border-left-width:10px;border-radius:12px;padding:10px 12px;margin-bottom:10px;position:relative}
+.card.hit{box-shadow:0 0 0 3px var(--ink)}
+.card.lost{opacity:.55;background:#eee}
+.card .nm{font:700 20px Fraunces,serif}
+.card .rg{font-size:14px;color:var(--muted)}
+.chips{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}
+.chip{font-size:13px;font-weight:600;border-radius:999px;padding:2px 9px;background:#eee7d6}
+.chip.on{background:var(--ink);color:#fff}
+.hp{display:flex;align-items:center;gap:6px;margin:4px 0}
+.pip{width:26px;height:14px;border-radius:4px;background:#e4ddcc}
+.status{font-weight:700;font-size:15px;margin-left:4px}
+.tok{font-size:14px;font-weight:600;color:var(--muted)}
+.badge{position:absolute;top:8px;right:10px;font:800 22px Fraunces,serif;background:var(--h1);color:#fff;border-radius:10px;padding:0 9px}
+.badge.zero{background:var(--h3)}
+.acts{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.result h2{font-size:40px;margin-bottom:6px}
+table{border-collapse:collapse;width:100%;margin:10px 0}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+th{font-size:15px;color:var(--muted)}
+details{margin-top:12px}
+summary{cursor:pointer;font-weight:600}
+.settings{display:grid;grid-template-columns:auto auto;gap:8px 12px;align-items:center;margin-top:10px}
+.settings input{font:inherit;width:80px;padding:4px 6px;border:2px solid var(--line);border-radius:8px}
+a{color:var(--S)}
+/* print view */
+.printview{display:none}
+body.print .wrap{display:none}
+body.print .printview{display:block;padding:20px}
+.pcards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.pcard{border:2px solid var(--ink);border-radius:12px;overflow:hidden;break-inside:avoid;background:#fff}
+.pcard .hd{color:#fff;padding:8px 12px}
+.pcard .hd .tm{font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:700}
+.pcard .hd h3{font-size:24px}
+.pcard .bd{padding:8px 12px;font-size:14px}
+.pcard .tr{margin:3px 0}
+.track{display:flex;gap:6px;margin:8px 0}
+.track div{flex:1;border:1.5px solid var(--ink);border-radius:6px;text-align:center;font-size:12px;padding:12px 2px 3px;font-weight:600}
+.slots{display:flex;gap:6px;align-items:center;margin:4px 0 8px}
+.slots i{width:22px;height:22px;border:1.5px solid var(--ink);border-radius:50%;display:inline-block}
+.lines div{border-bottom:1px solid #999;height:22px}
+@media print{
+  body{background:#fff}
+  .noprint{display:none!important}
+  .printview{padding:0}
+  @page{size:letter;margin:.4in}
+}
+/* landing + network */
+.landing{max-width:720px;margin:8vh auto;padding:0 20px}
+.landing h1{font-size:48px;margin-bottom:6px}
+.landing .box{background:var(--paper);border:2px solid var(--line);border-radius:16px;padding:20px;margin-top:18px}
+.landing input,.landing select{font:inherit;font-size:24px;padding:8px 10px;border:2px solid var(--ink);border-radius:10px;width:100%;margin:6px 0 12px;text-transform:uppercase}
+.landing select{text-transform:none}
+.code{font:800 30px Fraunces,serif;letter-spacing:.12em;background:var(--ink);color:var(--paper);padding:2px 14px;border-radius:10px}
+.net{font-size:14px;font-weight:600;border-radius:999px;padding:3px 10px;border:2px solid var(--line);color:var(--muted)}
+.net.on{color:#fff;border-color:transparent}
+/* team device */
+.tv{max-width:640px;margin:0 auto;padding:0 0 40px}
+.tv .band{color:#fff;padding:14px 16px;position:sticky;top:0;z-index:2}
+.tv .band h1{font-size:26px}
+.tv .band .sub{font-size:14px;opacity:.9;display:flex;gap:10px;flex-wrap:wrap}
+.tv .body{padding:14px}
+.tv .phase{font:700 22px Fraunces,serif;margin:4px 0 10px}
+.tv .tokens{font:800 44px Fraunces,serif}
+.tv .card .acts button{font-size:17px;padding:.45em .8em}
+.tv .event h2{font-size:26px}
+.tv .tt{font:800 32px Fraunces,serif}
+@media (max-width:1100px){.top{grid-template-columns:1fr}.groups{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="printview" id="printview"></div>
+<script>
+const TEAMS={
+  B:{name:'Bleaching Response',short:'Bleaching',trait:'Shallow'},
+  S:{name:'Storm Response',short:'Storm',trait:'Exposed'},
+  P:{name:'Land-Based Pollution Response',short:'Pollution',trait:'Runoff'},
+  X:{name:'Shared site',short:'Shared'}
+};
+const TEAMCOL={B:'var(--B)',S:'var(--S)',P:'var(--P)',X:'var(--X)'};
+const TRAITS={
+  Shallow:'Shallow reef flat: heat stress',
+  Exposed:'Wave exposed: storm damage',
+  Runoff:'Land-based inputs: runoff and sediment'
+};
+const SITES=[
+  {id:'kahaluu',name:'Kahaluʻu Bay',region:'Kona',team:'B',traits:['Shallow','Runoff'],lon:-155.965,lat:19.58,anchor:'end',dy:5},
+  {id:'kealakekua',name:'Kealakekua Bay',region:'South Kona',team:'B',traits:['Shallow'],lon:-155.925,lat:19.475,anchor:'end',dy:-2},
+  {id:'honaunau',name:'Hōnaunau',region:'South Kona',team:'B',traits:['Shallow'],lon:-155.915,lat:19.42,anchor:'end',dy:16},
+  {id:'laupahoehoe',name:'Laupāhoehoe',region:'Hāmākua',team:'S',traits:['Exposed'],lon:-155.235,lat:19.995,anchor:'start',dy:-4},
+  {id:'punaluu',name:'Punaluʻu',region:'Kaʻū',team:'S',traits:['Exposed','Shallow'],lon:-155.50,lat:19.135,anchor:'start',dy:22},
+  {id:'mahukona',name:'Mahukona',region:'North Kohala',team:'S',traits:['Exposed'],lon:-155.90,lat:20.185,anchor:'end',dy:5},
+  {id:'pelekane',name:'Pelekane Bay',region:'Kawaihae, South Kohala',team:'P',traits:['Runoff'],lon:-155.83,lat:20.035,anchor:'end',dy:-8},
+  {id:'puhi',name:'Puhi Bay',region:'Keaukaha, Hilo',team:'P',traits:['Runoff','Exposed'],lon:-155.04,lat:19.737,anchor:'end',dy:-12},
+  {id:'waiuli',name:'Waiʻuli',region:'Keaukaha, Hilo',team:'P',traits:['Runoff'],lon:-155.005,lat:19.735,anchor:'start',dy:20},
+  {id:'puako',name:'Puakō',region:'South Kohala',team:'X',traits:['Shallow','Exposed','Runoff'],lon:-155.85,lat:19.965,anchor:'end',dy:16}
+];
+const EVENTS=[
+  {id:'heat',name:'Marine heatwave',team:'B',hits:{Shallow:2},w:3,couple:true},
+  {id:'heat2',name:'Severe marine heatwave',team:'B',hits:{Shallow:3},w:1,couple:true},
+  {id:'swell',name:'Large swell event',team:'S',hits:{Exposed:2},w:2},
+  {id:'kona',name:'Kona storm',team:'S',hits:{Exposed:2,Runoff:1},w:2},
+  {id:'hurricane',name:'Hurricane',team:'S',hits:{Exposed:3,Runoff:1},w:1},
+  {id:'flood',name:'Heavy rain flood',team:'P',hits:{Runoff:2},w:2},
+  {id:'brown',name:'Brown-water flood',team:'P',hits:{Runoff:3},w:1},
+  {id:'calm',name:'Calm season',team:null,hits:{},w:2}
+];
+const HEALTH=['Lost','Degraded','Stressed','Healthy'];
+const HCOL=['var(--h0)','var(--h1)','var(--h2)','var(--h3)'];
+const PHASES=[['draw','Draw event'],['huddle','Team huddle'],['meeting','Office meeting'],['spend','Place resources'],['results','Results']];
+const KEY='reef-office-v2';
+
+function freshState(settings){
+  settings=settings||{rounds:6,budget:8,threshold:4};
+  return {settings,round:1,phase:'draw',reserve:0,event:null,
+    sites:SITES.map(s=>({id:s.id,health:3,res:0,resp:0,restore:0})),
+    alloc:{B:0,S:0,P:0},remaining:{B:0,S:0,P:0},active:'B',
+    stats:{B:{respond:0,resilience:0,restore:0,saved:0},S:{respond:0,resilience:0,restore:0,saved:0},P:{respond:0,resilience:0,restore:0,saved:0}},
+    log:[],drawn:[],over:null,timer:{dur:180,left:180,running:false},confirmReset:false};
+}
+let S; try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S||!S.sites) S=freshState();
+S.timer.running=false;
+let history=[];
+let MODE=null; // 'host' | 'team'
+function save(){if(MODE!=='host')return;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+function snap(){history.push(JSON.stringify(S));if(history.length>60)history.shift()}
+function undo(){if(!history.length)return;S=JSON.parse(history.pop());S.timer.running=false;render()}
+
+const siteDef=id=>SITES.find(s=>s.id===id);
+const ev=()=>S.event?EVENTS.find(e=>e.id===S.event):null;
+const lostCount=()=>S.sites.filter(s=>s.health===0).length;
+
+function damageFor(st){
+  const e=ev(); const d=siteDef(st.id);
+  if(!e||st.health===0) return {raw:0,final:0,notes:[]};
+  const sev=d.traits.filter(t=>e.hits[t]).map(t=>e.hits[t]);
+  if(!sev.length) return {raw:0,final:0,notes:[]};
+  let raw=Math.max(...sev); const notes=[];
+  if(sev.length>1){raw+=1;notes.push('compound hit +1')}
+  if(e.couple&&d.traits.includes('Runoff')&&st.res===0){raw+=1;notes.push('polluted water +1')}
+  const final=Math.max(0,raw-st.res-st.resp);
+  return {raw,final,notes};
+}
+function defaultSplit(){
+  const b=S.settings.budget, e=ev(), a={B:0,S:0,P:0};
+  if(e&&e.team){const main=Math.round(b*0.7);const side=Math.floor((b-main)/2);
+    for(const t of 'BSP') a[t]=t===e.team?main:side;}
+  else{for(const t of 'BSP') a[t]=Math.floor(b/3);}
+  return a;
+}
+function sumA(a){return a.B+a.S+a.P}
+function teamScore(t){return S.sites.filter(s=>{const d=siteDef(s.id);return d.team===t||d.team==='X'}).reduce((n,s)=>n+s.health,0)}
+
+/* actions */
+function act(a,arg){
+  if(a==='undo') return undo();
+  if(a==='print'){document.body.classList.add('print');renderPrint();return}
+  if(a==='closeprint'){document.body.classList.remove('print');return}
+  if(a.startsWith('timer')) return timerAct(a,arg);
+  snap();
+  switch(a){
+    case 'draw':{
+      const tot=EVENTS.reduce((n,e)=>n+e.w,0);let r=Math.random()*tot,pick=EVENTS[0];
+      for(const e of EVENTS){if((r-=e.w)<0){pick=e;break}}
+      S.event=pick.id;S.drawn.push(pick.id);S.phase='huddle';resetTimer(180);break}
+    case 'tomeeting': S.alloc=defaultSplit();S.phase='meeting';resetTimer(180);break;
+    case 'inc': {const pool=S.settings.budget+S.reserve;if(sumA(S.alloc)<pool)S.alloc[arg]++;break}
+    case 'dec': if(S.alloc[arg]>0)S.alloc[arg]--;break;
+    case 'consensus':{const pool=S.settings.budget+S.reserve;S.remaining={...S.alloc};S.reserve=pool-sumA(S.alloc);
+      S.log.push(`Round ${S.round}: consensus reached (${S.alloc.B} / ${S.alloc.S} / ${S.alloc.P}).`);toSpend();break}
+    case 'deadlock':{const d=defaultSplit();for(const t of 'BSP')d[t]=Math.max(0,d[t]-1);
+      S.remaining=d;S.reserve+=S.settings.budget-sumA(defaultSplit());
+      S.log.push(`Round ${S.round}: no consensus. Default split applied, each team lost 1 token to delay.`);toSpend();break}
+    case 'team': S.active=arg;break;
+    case 'respond': spend(arg,'resp',1);break;
+    case 'resil': spend(arg,'res',1);break;
+    case 'restore': spend(arg,'restore',2);break;
+    case 'resolve': resolve();break;
+    case 'next': S.round++;S.phase='draw';S.event=null;break;
+    case 'reset':
+      if(!S.confirmReset){S.confirmReset=true;history.pop();break}
+      {const st=readSettings();S=freshState(st);history=[];break}
+  }
+  if(a!=='reset')S.confirmReset=false;
+  render();
+}
+function toSpend(){S.phase='spend';S.timer.running=false;const e=ev();S.active=e&&e.team?e.team:'B'}
+function spend(id,field,cost,team){
+  const t=team||S.active;if(S.phase!=='spend'||S.remaining[t]<cost)return;
+  const st=S.sites.find(s=>s.id===id);if(!st||st.health===0)return;
+  if(field==='resp'&&damageFor(st).final===0)return;
+  if(field==='res'&&st.res>=2)return;
+  if(field==='restore'&&st.health+st.restore>=3)return;
+  S.remaining[t]-=cost;st[field]+=1;
+  S.stats[t][field==='resp'?'respond':field==='res'?'resilience':'restore']+=1;
+}
+function resolve(){
+  const e=ev();const lines=[`<b>Round ${S.round}: ${e.name}</b>`];
+  for(const st of S.sites){
+    const d=siteDef(st.id);if(st.health===0)continue;
+    const dm=damageFor(st);
+    if(dm.raw>0){
+      const before=st.health;st.health=Math.max(0,st.health-dm.final);
+      const blocked=dm.raw-dm.final;
+      lines.push(`${d.name}: hit for ${dm.raw}${dm.notes.length?' ('+dm.notes.join(', ')+')':''}, ${blocked} blocked → ${HEALTH[st.health]}${st.health===0?' ✕':''}`);
+      if(before>0&&st.health===0)S.log.push(`${d.name} was lost in round ${S.round}.`);
+    }
+    if(st.health>0&&st.restore>0){const b=st.health;st.health=Math.min(3,st.health+st.restore);if(st.health>b)lines.push(`${d.name}: restored to ${HEALTH[st.health]}`)}
+    if(!e.team&&st.res>0&&st.health>0&&st.health<3){st.health++;lines.push(`${d.name}: recovered in the calm (resilience) → ${HEALTH[st.health]}`)}
+    st.resp=0;st.restore=0;
+  }
+  let saved=0;for(const t of 'BSP'){saved+=S.remaining[t];S.stats[t].saved+=S.remaining[t];S.remaining[t]=0}
+  S.reserve+=saved;if(saved)lines.push(`${saved} unspent token${saved>1?'s':''} saved to the office reserve.`);
+  if(lines.length===1)lines.push('No sites were damaged.');
+  S.lastResults=lines;S.phase='results';
+  const lost=lostCount();
+  if(lost>=S.settings.threshold)S.over='collapse';
+  else if(S.round>=S.settings.rounds)S.over='survived';
+}
+function readSettings(){
+  const g=id=>{const el=document.getElementById(id);const v=el?parseInt(el.value,10):NaN;return isNaN(v)?null:v};
+  return {rounds:g('setRounds')||S.settings.rounds,budget:g('setBudget')||S.settings.budget,threshold:g('setThresh')||S.settings.threshold};
+}
+
+/* timer */
+let tick=null;
+function resetTimer(sec){S.timer={dur:sec,left:sec,running:false}}
+function timerAct(a,arg){
+  if(a==='timerStart'){S.timer.running=!S.timer.running}
+  if(a==='timerSet'){resetTimer(+arg)}
+  if(a==='timerReset'){resetTimer(S.timer.dur)}
+  render();
+}
+setInterval(()=>{if(MODE!=='host'||!S||!S.timer.running)return;S.timer.left=Math.max(0,S.timer.left-1);if(S.timer.left===0)S.timer.running=false;
+  const el=document.getElementById('tval');if(el){el.textContent=fmt(S.timer.left);el.classList.toggle('out',S.timer.left===0)}
+  broadcast({type:'tick',left:S.timer.left});
+  if(S.timer.left===0)render();},1000);
+const fmt=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+
+/* render */
+const X=lon=>(lon+156.12)*470+130, Y=lat=>(20.32-lat)*500;
+const COAST=[[-155.86,20.27],[-155.73,20.21],[-155.58,20.12],[-155.45,20.08],[-155.24,19.99],[-155.13,19.90],[-155.08,19.84],[-155.06,19.73],[-154.98,19.73],[-154.81,19.52],[-154.98,19.35],[-155.19,19.26],[-155.50,19.13],[-155.68,18.91],[-155.91,19.18],[-155.91,19.42],[-155.93,19.48],[-156.00,19.64],[-156.06,19.73],[-155.93,19.86],[-155.85,19.97],[-155.83,20.04],[-155.90,20.18]];
+function mapSVG(){
+  const pts=COAST.map(([lo,la])=>`${X(lo).toFixed(0)},${Y(la).toFixed(0)}`).join(' ');
+  let g='';
+  for(const st of S.sites){const d=siteDef(st.id);const x=X(d.lon),y=Y(d.lat);const dm=damageFor(st);
+    const showDmg=['huddle','meeting','spend'].includes(S.phase)&&dm.raw>0;
+    const lx=d.anchor==='end'?x-20:x+20;
+    g+=`<g>${showDmg?`<circle cx="${x}" cy="${y}" r="24" fill="none" stroke="var(--ink)" stroke-width="3" stroke-dasharray="5 4"/>`:''}
+    <circle cx="${x}" cy="${y}" r="16" fill="${HCOL[st.health]}" stroke="${TEAMCOL[d.team]}" stroke-width="5"/>
+    ${st.res?`<text x="${x}" y="${y+6}" text-anchor="middle" class="dmg" style="font-size:15px">${'◆'.repeat(st.res)}</text>`:''}
+    <text x="${lx}" y="${y+d.dy}" text-anchor="${d.anchor}" class="lbl">${d.name}${showDmg?` (−${dm.final})`:''}</text></g>`;}
+  return `<svg viewBox="0 0 900 730" role="img" aria-label="Schematic map of Hawaiʻi Island restoration sites">
+  <rect width="900" height="730" rx="14" fill="var(--sea)"/>
+  <polygon points="${pts}" fill="var(--land)" stroke="var(--landline)" stroke-width="3" stroke-linejoin="round"/>
+  <text x="${X(-155.47)}" y="${Y(19.62)}" text-anchor="middle" style="font:italic 600 26px Fraunces,serif;fill:var(--landline)">Hawaiʻi Island</text>
+  ${g}</svg>`;
+}
+function eventBlock(big){
+  const e=ev();if(!e)return '';
+  if(!e.team)return `<div class="event calm"><div class="who">No event</div><h2>${e.name}</h2><div>No damage this round. Sites with resilience recover one level. A good round to invest.</div></div>`;
+  const hitList=Object.entries(e.hits).map(([t,v])=>`<li>${t} sites: −${v}</li>`).join('');
+  const sites=S.sites.filter(s=>damageFor(s).raw>0).map(s=>siteDef(s.id).name);
+  return `<div class="event" style="background:${TEAMCOL[e.team]}"><div class="who">Main response: ${TEAMS[e.team].name}</div><h2>${e.name}</h2>
+  ${big?`<ul>${hitList}${e.couple?'<li>Runoff sites with no resilience take +1 (polluted water lowers heat tolerance)</li>':''}<li>Sites with two or more hit traits take +1</li></ul>`:''}
+  <div style="margin-top:8px"><b>Sites hit:</b> ${sites.join(', ')||'none'}</div></div>`;
+}
+function timerBlock(){
+  return `<div class="timer"><span class="t ${S.timer.left===0?'out':''}" id="tval">${fmt(S.timer.left)}</span>
+  <button class="small" data-a="timerStart">${S.timer.running?'Pause':'Start'}</button>
+  <button class="small" data-a="timerReset">Reset</button>
+  <button class="small" data-a="timerSet" data-arg="60">1 min</button><button class="small" data-a="timerSet" data-arg="120">2 min</button><button class="small" data-a="timerSet" data-arg="180">3 min</button><button class="small" data-a="timerSet" data-arg="300">5 min</button></div>`;
+}
+function panel(){
+  const p=S.phase;
+  if(S.over&&p==='results') return resultsPanel()+finalPanel();
+  if(p==='draw') return `<h2 style="font-size:30px;margin-bottom:8px">Round ${S.round}</h2>
+    <p>Draw from the event deck. Anything can happen: heat, storms, floods, or a calm season.</p>
+    <button class="primary" style="font-size:26px;padding:.5em 1.4em" data-a="draw">Draw event</button>
+    <p class="note" style="margin-top:14px">Office budget this round: ${S.settings.budget} tokens, plus ${S.reserve} in reserve.</p>`;
+  if(p==='huddle') return eventBlock(true)+`<h3>Team huddle</h3><p class="note">Each team decides what to ask for: an immediate response, resilience for later, or both. Choose your representative.</p>${timerBlock()}<button class="primary" data-a="tomeeting">Start office meeting</button>`;
+  if(p==='meeting'){const pool=S.settings.budget+S.reserve;const d=defaultSplit();
+    return eventBlock(false)+`<h3>Office meeting</h3><p class="note">Reps must reach consensus before time runs out. Default split: ${d.B} / ${d.S} / ${d.P}.</p>${timerBlock()}
+    <div class="alloc">${'BSP'.split('').map(t=>`<span class="dot" style="background:${TEAMCOL[t]}"></span><span class="nm">${TEAMS[t].name}</span>
+      <span class="ctr"><button class="small" data-a="dec" data-arg="${t}">−</button><b>${S.alloc[t]}</b><button class="small" data-a="inc" data-arg="${t}" ${sumA(S.alloc)>=pool?'disabled':''}>+</button></span>`).join('')}</div>
+    <div class="pool">Pool: ${pool} (budget ${S.settings.budget} + reserve ${S.reserve}). Allocated ${sumA(S.alloc)}, ${pool-sumA(S.alloc)} stays in reserve.</div>
+    <div class="row"><button class="primary" data-a="consensus">Consensus reached</button><button data-a="deadlock">No consensus</button></div>`;}
+  if(p==='spend') return eventBlock(false)+`<h3>Place resources</h3>
+    <p class="note">Pick a team, then use the buttons on the site cards. Any team can spend on any site. Unspent tokens go to the reserve.</p>
+    <div class="row" style="margin:10px 0">${'BSP'.split('').map(t=>`<button class="teamchip ${S.active===t?'on':''}" style="border-color:${TEAMCOL[t]};${S.active===t?'background:'+TEAMCOL[t]:''}" data-a="team" data-arg="${t}">${TEAMS[t].short}: ${S.remaining[t]}</button>`).join('')}</div>
+    <p class="note"><b>Respond</b> (1): blocks 1 damage this round. <b>Resilience</b> (1): ◆ reduces every future hit at that site by 1, max 2. <b>Restore</b> (2): +1 health after this round.</p>
+    <button class="primary" data-a="resolve">Resolve round</button>`;
+  if(p==='results') return resultsPanel()+`<button class="primary" data-a="next">Next round</button>`;
+}
+function resultsPanel(){return `<h3>Round ${S.round} results</h3><ul class="log">${(S.lastResults||[]).map((l,i)=>i?`<li>${l}</li>`:`<li style="list-style:none;margin-left:-20px">${l}</li>`).join('')}</ul>`}
+function finalPanel(){
+  const lost=lostCount();
+  let h='';
+  if(S.over==='collapse') h=`<div class="result"><h2 style="color:var(--h1)">Reef collapse</h2><p>${lost} sites lost (limit ${S.settings.threshold}). The whole office loses.</p></div>`;
+  else{const sc='BSP'.split('').map(t=>({t,s:teamScore(t)})).sort((a,b)=>b.s-a.s);const top=sc.filter(x=>x.s===sc[0].s);
+    h=`<div class="result"><h2 style="color:var(--h3)">The reef survived</h2><p>${lost} of ${S.settings.threshold} allowed sites lost. Winner: <b>${top.map(x=>TEAMS[x.t].name).join(' and ')}</b>.</p></div>`;}
+  h+=`<table><tr><th>Team</th><th>Score</th><th>Respond</th><th>Resilience</th><th>Restore</th><th>Saved</th></tr>
+  ${'BSP'.split('').map(t=>`<tr><td><span class="dot" style="background:${TEAMCOL[t]}"></span> ${TEAMS[t].short}</td><td><b>${teamScore(t)}</b></td><td>${S.stats[t].respond}</td><td>${S.stats[t].resilience}</td><td>${S.stats[t].restore}</td><td>${S.stats[t].saved}</td></tr>`).join('')}</table>
+  <p class="note">Score is the summed health of each team's adopted sites plus Puakō. Token columns show how each team spent across the game, for the debrief.</p>
+  <p class="note">Events drawn: ${S.drawn.map(id=>EVENTS.find(e=>e.id===id).name).join(', ')}</p>`;
+  return h;
+}
+function siteCard(st){
+  const d=siteDef(st.id);const dm=damageFor(st);const p=S.phase;
+  const showDmg=['huddle','meeting','spend'].includes(p)&&dm.raw>0;
+  const e=ev();
+  let acts='';
+  if(p==='spend'&&st.health>0){const r=S.remaining[S.active];
+    acts=`<div class="acts">${dm.raw>0?`<button class="small" data-a="respond" data-arg="${st.id}" ${r<1||dm.final===0?'disabled':''}>Respond</button>`:''}
+    <button class="small" data-a="resil" data-arg="${st.id}" ${r<1||st.res>=2?'disabled':''}>Resilience</button>
+    <button class="small" data-a="restore" data-arg="${st.id}" ${r<2||st.health+st.restore>=3?'disabled':''}>Restore</button></div>`;}
+  return `<div class="card ${showDmg?'hit':''} ${st.health===0?'lost':''}" style="border-left-color:${TEAMCOL[d.team]}">
+   ${showDmg?`<span class="badge ${dm.final===0?'zero':''}">−${dm.final}</span>`:''}
+   <div class="nm">${d.name}</div><div class="rg">${d.region}</div>
+   <div class="chips">${d.traits.map(t=>`<span class="chip ${e&&e.hits[t]&&showDmg?'on':''}">${t}</span>`).join('')}</div>
+   <div class="hp">${[1,2,3].map(i=>`<span class="pip" style="${i<=st.health?'background:'+HCOL[st.health]:''}"></span>`).join('')}<span class="status" style="color:${HCOL[st.health]}">${HEALTH[st.health]}</span></div>
+   <div class="tok">${st.res?`Resilience ${'◆'.repeat(st.res)}`:'No resilience'}${st.resp?` · Responding ${st.resp}`:''}${st.restore?` · Restoring +${st.restore}`:''}${showDmg&&dm.notes.length?` · ${dm.notes.join(', ')}`:''}</div>
+   ${acts}</div>`;
+}
+function render(){
+  const lost=lostCount();const pi=PHASES.findIndex(x=>x[0]===S.phase);
+  document.getElementById('app').innerHTML=`
+  <header><h1>Reef Response Office</h1>
+   <span class="hstat">Join code <span class="code">${NET.code||'····'}</span></span>
+   ${netChips()}
+   <span class="hstat">Round <b>${S.round}</b> of ${S.settings.rounds}</span>
+   <span class="hstat ${lost>=S.settings.threshold-1?'danger':''}">Sites lost <b>${lost}</b> / ${S.settings.threshold}</span>
+   <span class="hstat">Reserve <b>${S.reserve}</b></span>
+   <span class="spacer"></span>
+   <button class="small noprint" data-a="undo" ${history.length?'':'disabled'}>Undo</button>
+   <button class="small noprint" data-a="print">Printable site cards</button></header>
+  <div class="phases">${PHASES.map((x,i)=>`<span class="ph ${i===pi?'on':i<pi?'done':''}">${i+1}. ${x[1]}</span>`).join('')}</div>
+  <div class="top"><div class="panel map">${mapSVG()}
+     <div class="legend">${[3,2,1,0].map(h=>`<span><i class="dot" style="background:${HCOL[h]}"></i>${HEALTH[h]}</span>`).join('')}
+     ${'BSPX'.split('').map(t=>`<span><i class="dot" style="background:#fff;border:4px solid ${TEAMCOL[t]}"></i>${TEAMS[t].short}</span>`).join('')}<span>◆ resilience</span></div></div>
+   <div class="panel">${panel()}
+     <details><summary>Settings and new game</summary>
+      <div class="settings"><label for="setRounds">Rounds</label><input id="setRounds" type="number" min="1" max="20" value="${S.settings.rounds}">
+      <label for="setBudget">Budget per round</label><input id="setBudget" type="number" min="1" max="40" value="${S.settings.budget}">
+      <label for="setThresh">Sites lost to collapse</label><input id="setThresh" type="number" min="1" max="10" value="${S.settings.threshold}"></div>
+      <p class="note">Settings apply when you start a new game.</p>
+      <button class="small" data-a="reset">${S.confirmReset?'Click again to confirm':'New game'}</button></details></div></div>
+  <div class="groups">${'BSPX'.split('').map(t=>`<div class="group"><h3><span class="sw" style="background:${TEAMCOL[t]}"></span>${t==='X'?'Shared site (all teams)':TEAMS[t].name}</h3>
+     ${S.sites.filter(s=>siteDef(s.id).team===t).map(siteCard).join('')}</div>`).join('')}</div>`;
+  save();broadcastState();
+}
+function renderPrint(){
+  document.getElementById('printview').innerHTML=`<div class="noprint" style="margin-bottom:14px" class="row">
+   <button data-a="closeprint">Back to game</button> <span class="note">Open this page in its own browser tab and print with Ctrl+P / ⌘P.</span></div>
+  <div class="pcards">${SITES.map(d=>`<div class="pcard"><div class="hd" style="background:${TEAMCOL[d.team]}">
+   <div class="tm">${d.team==='X'?'Shared site: all teams':TEAMS[d.team].name}</div><h3>${d.name}</h3><div style="font-size:13px">${d.region}</div></div>
+   <div class="bd">${d.traits.map(t=>`<div class="tr"><b>${t}</b>: ${TRAITS[t].split(': ')[1]}</div>`).join('')}
+   <div class="track">${[3,2,1,0].map(h=>`<div>${HEALTH[h]}</div>`).join('')}</div>
+   <div class="slots"><b>Resilience</b> <i></i><i></i></div>
+   <div class="lines"><div></div><div></div><div></div></div></div></div>`).join('')}</div>`;
+}
+/* ---------- networking (PeerJS) ---------- */
+const NET={peer:null,code:null,conns:[],status:'offline',conn:null,team:null,retry:null};
+const PREFIX='reefoffice-mare140-';
+function peerOpts(){
+  const q=new URLSearchParams(location.search).get('server');
+  if(!q)return {debug:0};
+  const [host,port]=q.split(':');return {host,port:+port||9000,path:'/',secure:false,debug:0};
+}
+function genCode(){const L='ABCDEFGHJKMNPQRTUVWXYZ2346789';let c='';for(let i=0;i<4;i++)c+=L[Math.floor(Math.random()*L.length)];return c}
+function netChips(){
+  return 'BSP'.split('').map(t=>{const on=NET.conns.some(c=>c.open&&c.metadata&&c.metadata.team===t);
+    return `<span class="net ${on?'on':''}" style="${on?'background:'+TEAMCOL[t]:''}">${TEAMS[t].short} ${on?'connected':'not connected'}</span>`}).join('');
+}
+function publicState(){const o={...S};delete o.confirmReset;return o}
+function broadcast(msg){if(MODE!=='host')return;for(const c of NET.conns){if(c.open){try{c.send(msg)}catch(e){}}}}
+function broadcastState(){broadcast({type:'state',S:publicState()})}
+
+function startHost(){
+  MODE='host';
+  if(typeof Peer==='undefined'){NET.status='unavailable';render();return}
+  try{NET.code=localStorage.getItem(KEY+'-code')}catch(e){}
+  if(!NET.code){NET.code=genCode();try{localStorage.setItem(KEY+'-code',NET.code)}catch(e){}}
+  openHostPeer();render();
+}
+function openHostPeer(){
+  const p=new Peer(PREFIX+NET.code,peerOpts());NET.peer=p;
+  p.on('open',()=>{NET.status='online';render()});
+  p.on('connection',c=>{
+    c.on('open',()=>{NET.conns=NET.conns.filter(x=>x.open);NET.conns.push(c);c.send({type:'state',S:publicState()});render()});
+    c.on('data',d=>onRemote(c,d));
+    c.on('close',()=>{NET.conns=NET.conns.filter(x=>x!==c);render()});
+  });
+  p.on('disconnected',()=>{NET.status='reconnecting';try{p.reconnect()}catch(e){}});
+  p.on('error',e=>{
+    if(e.type==='unavailable-id'){NET.status='code in use, retrying';render();p.destroy();setTimeout(openHostPeer,4000);return}
+    if(e.type==='network'||e.type==='server-error'||e.type==='socket-error'){NET.status='network problem';render()}
+  });
+}
+function onRemote(c,d){
+  if(!d||d.type!=='act')return;
+  const team=c.metadata&&c.metadata.team;if(!'BSP'.includes(team)||team.length!==1)return;
+  const map={respond:['resp',1],resil:['res',1],restore:['restore',2]};
+  const m=map[d.action];if(!m||S.phase!=='spend')return;
+  snap();spend(String(d.site),m[0],m[1],team);render();
+}
+
+function startTeam(code,team){
+  MODE='team';NET.code=code;NET.team=team;NET.status='connecting';S=null;
+  if(typeof Peer==='undefined'){NET.status='unavailable';renderTeam();return}
+  const p=new Peer(undefined,peerOpts());NET.peer=p;
+  p.on('open',connectTeam);
+  p.on('disconnected',()=>{try{p.reconnect()}catch(e){}});
+  p.on('error',e=>{
+    NET.status=e.type==='peer-unavailable'?`no game found with code ${code}, retrying`:'connection problem, retrying';
+    renderTeam();scheduleRetry();
+  });
+  renderTeam();
+}
+function scheduleRetry(){clearTimeout(NET.retry);NET.retry=setTimeout(()=>{if(!NET.conn||!NET.conn.open)connectTeam()},3000)}
+function connectTeam(){
+  const p=NET.peer;if(!p||p.destroyed)return;
+  if(p.disconnected){try{p.reconnect()}catch(e){}scheduleRetry();return}
+  const c=p.connect(PREFIX+NET.code,{metadata:{team:NET.team},reliable:true});NET.conn=c;
+  c.on('open',()=>{NET.status='online';renderTeam()});
+  c.on('data',d=>{
+    if(d.type==='state'){S=d.S;renderTeam()}
+    else if(d.type==='tick'&&S){S.timer.left=d.left;const el=document.getElementById('tval');if(el)el.textContent=fmt(d.left)}
+  });
+  c.on('close',()=>{NET.status='reconnecting';renderTeam();scheduleRetry()});
+  c.on('error',()=>scheduleRetry());
+}
+function sendAct(action,site){if(NET.conn&&NET.conn.open)NET.conn.send({type:'act',action,site})}
+
+/* ---------- team device view ---------- */
+const PHASE_HELP={
+  draw:'Waiting for the next event…',
+  huddle:'Huddle: decide what your team will ask for, and pick your rep.',
+  meeting:'Office meeting: your rep negotiates the budget.',
+  spend:'Place your tokens on the sites below.',
+  results:'Round results'
+};
+function teamSiteCard(st){
+  const t=NET.team,d=siteDef(st.id),dm=damageFor(st),p=S.phase;
+  const showDmg=['huddle','meeting','spend'].includes(p)&&dm.raw>0;const r=S.remaining[t];
+  let acts='';
+  if(p==='spend'&&st.health>0){
+    acts=`<div class="acts">${dm.raw>0?`<button data-t="respond" data-arg="${st.id}" ${r<1||dm.final===0?'disabled':''}>Respond (1)</button>`:''}
+    <button data-t="resil" data-arg="${st.id}" ${r<1||st.res>=2?'disabled':''}>Resilience (1)</button>
+    <button data-t="restore" data-arg="${st.id}" ${r<2||st.health+st.restore>=3?'disabled':''}>Restore (2)</button></div>`;}
+  return `<div class="card ${showDmg?'hit':''} ${st.health===0?'lost':''}" style="border-left-color:${TEAMCOL[d.team]}">
+   ${showDmg?`<span class="badge ${dm.final===0?'zero':''}">−${dm.final}</span>`:''}
+   <div class="nm">${d.name}</div><div class="rg">${d.region}</div>
+   <div class="chips">${d.traits.map(x=>`<span class="chip">${x}</span>`).join('')}</div>
+   <div class="hp">${[1,2,3].map(i=>`<span class="pip" style="${i<=st.health?'background:'+HCOL[st.health]:''}"></span>`).join('')}<span class="status" style="color:${HCOL[st.health]}">${HEALTH[st.health]}</span></div>
+   <div class="tok">${st.res?`Resilience ${'◆'.repeat(st.res)}`:'No resilience'}${st.resp?` · Responding ${st.resp}`:''}${st.restore?` · Restoring +${st.restore}`:''}${showDmg&&dm.notes.length?` · ${dm.notes.join(', ')}`:''}</div>
+   ${acts}</div>`;
+}
+function renderTeam(){
+  const t=NET.team;const app=document.getElementById('app');app.className='';
+  let body='';
+  if(!S){body=`<p class="phase">Connecting to game ${NET.code}…</p><p class="note">${NET.status}. Keep this page open; it retries on its own.</p>`}
+  else{
+    const mine=S.sites.filter(s=>{const d=siteDef(s.id);return d.team===t||d.team==='X'});
+    const others=S.sites.filter(s=>{const d=siteDef(s.id);return d.team!==t&&d.team!=='X'});
+    body=`<div class="phase">Round ${S.round} of ${S.settings.rounds} · ${PHASE_HELP[S.phase]}</div>
+    ${['huddle','meeting'].includes(S.phase)?`<div class="tt">⏱ <span id="tval">${fmt(S.timer.left)}</span></div>`:''}
+    ${S.phase!=='draw'&&S.phase!=='results'?eventBlock(S.phase==='huddle'):''}
+    ${S.phase==='spend'?`<div class="panel" style="margin-bottom:12px"><div class="note">Your tokens</div><div class="tokens">${S.remaining[t]}</div>
+      <p class="note" style="margin:0"><b>Respond</b>: blocks 1 damage now. <b>Resilience</b> ◆: −1 on every future hit, max 2. <b>Restore</b>: +1 health. Unspent tokens go to the office reserve.</p></div>`:''}
+    ${S.phase==='results'?`<div class="panel" style="margin-bottom:12px">${resultsPanel()}${S.over?finalPanel():''}</div>`:''}
+    <h3 style="margin:8px 0">Your sites</h3>${mine.map(teamSiteCard).join('')}
+    <details ${S.phase==='spend'?'open':''}><summary>Other teams' sites (you can help them too)</summary><div style="margin-top:8px">${others.map(teamSiteCard).join('')}</div></details>
+    <p class="note">Sites lost: ${lostCount()} / ${S.settings.threshold} · Office reserve: ${S.reserve}</p>`;
+  }
+  app.innerHTML=`<div class="tv"><div class="band" style="background:${TEAMCOL[t]}"><h1>${TEAMS[t].name}</h1>
+    <div class="sub"><span>Game ${NET.code}</span><span>${NET.status==='online'?'● connected':'○ '+NET.status}</span></div></div><div class="body">${body}</div></div>`;
+}
+
+/* ---------- landing ---------- */
+function renderLanding(){
+  const q=new URLSearchParams(location.search);
+  document.getElementById('app').innerHTML=`<div class="landing"><h1>Reef Response Office</h1>
+   <p class="note">MARE 140 · Hawaiʻi Island reef restoration game</p>
+   <div class="box"><h2 style="font-size:26px">Join as a team</h2>
+    <label>Game code<input id="jcode" maxlength="4" autocomplete="off" value="${(q.get('code')||'').replace(/[^A-Za-z0-9]/g,'').slice(0,4)}" placeholder="ABCD"></label>
+    <label>Your team<select id="jteam">${'BSP'.split('').map(t=>`<option value="${t}" ${q.get('team')===t?'selected':''}>${TEAMS[t].name}</option>`).join('')}</select></label>
+    <button class="primary" style="font-size:22px;width:100%" data-l="join">Join game</button></div>
+   <div class="box"><h2 style="font-size:22px">Instructor</h2><p class="note">Open this on the projected screen. It shows the join code for team devices.</p>
+    <button data-l="host">Host the game</button></div></div>`;
+}
+
+document.addEventListener('click',e=>{
+  const l=e.target.closest('[data-l]');
+  if(l){if(l.dataset.l==='host')startHost();
+    else{const code=document.getElementById('jcode').value.trim().toUpperCase();const team=document.getElementById('jteam').value;
+      if(code.length===4)startTeam(code,team);}return}
+  const tb=e.target.closest('[data-t]');
+  if(tb){if(!tb.disabled&&MODE==='team')sendAct(tb.dataset.t,tb.dataset.arg);return}
+  const b=e.target.closest('[data-a]');if(!b||b.disabled)return;
+  if(MODE==='host')act(b.dataset.a,b.dataset.arg);
+});
+renderLanding();
+</script>
+</body>
+</html>
