@@ -309,9 +309,13 @@ function act(a,arg){
     case 'next': S.round++;S.phase='draw';S.event=null;break;
     case 'reset':
       if(!S.confirmReset){S.confirmReset=true;history.pop();break}
-      {const st=readSettings();S=freshState(st);history=[];break}
+      {const st=readSettings();S=freshState(st);history=[];switchCode();break}
+    case 'newcode':
+      if(!S.confirmCode){S.confirmCode=true;history.pop();break}
+      S.confirmCode=false;history.pop();switchCode();break;
   }
   if(a!=='reset')S.confirmReset=false;
+  if(a!=='newcode')S.confirmCode=false;
   render();
 }
 function toSpend(){S.spendLog=[];S.phase='spend';S.timer.running=false;const e=ev();S.active=e&&e.team?e.team:'B'}
@@ -505,12 +509,14 @@ function render(){
      <div class="legend">${[3,2,1,0].map(h=>`<span><i class="dot" style="background:${HCOL[h]}"></i>${HEALTH[h]}</span>`).join('')}
      ${'BSPX'.split('').map(t=>`<span><i class="dot" style="background:#fff;border:4px solid ${TEAMCOL[t]}"></i>${TEAMS[t].short}</span>`).join('')}<span><i class="pip res" style="display:inline-block;width:20px;background:var(--R)"></i> resilience</span></div></div>
    <div class="panel">${panel()}
-     <details><summary>Settings and new game</summary>
+     <details id="settingsBox" ${settingsOpen?'open':''}><summary>Settings and new game</summary>
       <div class="settings"><label for="setRounds">Rounds</label><input id="setRounds" type="number" min="1" max="20" value="${S.settings.rounds}">
       <label for="setBudget">Budget per round</label><input id="setBudget" type="number" min="1" max="40" value="${S.settings.budget}">
       <label for="setThresh">Sites lost to collapse</label><input id="setThresh" type="number" min="1" max="10" value="${S.settings.threshold}"></div>
       <p class="note">Settings apply when you start a new game.</p>
-      <button class="small" data-a="reset">${S.confirmReset?'Click again to confirm':'New game'}</button></details></div></div>
+      <div class="row"><button class="small" data-a="reset">${S.confirmReset?'Click again to confirm':'New game'}</button>
+      <button class="small" data-a="newcode">${S.confirmCode?'Click again to confirm':'New join code'}</button></div>
+      <p class="note">New game also makes a new join code and erases the old game from the database. New join code keeps this game; teams rejoin with the new code.</p></details></div></div>
   <div class="groups">${'BSPX'.split('').map(t=>`<div class="group"><h3><span class="sw" style="background:${TEAMCOL[t]}"></span>${t==='X'?'Shared site (all teams)':TEAMS[t].name}</h3>
      ${S.sites.filter(s=>siteDef(s.id).team===t).map(siteCard).join('')}</div>`).join('')}</div>`;
   save();broadcastState();
@@ -552,7 +558,7 @@ function netChips(){
    +(NET.status!=='online'?` <span class="net">${NET.status}</span>`:'')
    +(NET.writeErr?` <span class="net" style="border-color:var(--h1);color:var(--h1)">${NET.writeErr}</span>`:'');
 }
-function publicState(){const o=JSON.parse(JSON.stringify(S));delete o.confirmReset;return o}
+function publicState(){const o=JSON.parse(JSON.stringify(S));delete o.confirmReset;delete o.confirmCode;return o}
 function broadcast(msg){if(MODE!=='host'||!NET.ref)return;if(msg.type==='tick')NET.ref.child('tick').set(msg.left).catch(()=>{})}
 function broadcastState(){
   if(MODE!=='host'||!NET.ref)return;
@@ -564,13 +570,23 @@ function startHost(){
   if(!db){NET.status='team devices unavailable (could not load Firebase)';render();return}
   try{NET.code=localStorage.getItem(KEY+'-code')}catch(e){}
   if(!NET.code){NET.code=genCode();try{localStorage.setItem(KEY+'-code',NET.code)}catch(e){}}
-  NET.ref=db.ref('games/'+NET.code);
   db.ref('.info/connected').on('value',s=>{NET.status=s.val()?'online':'connecting…';render()});
-  NET.ref.child('teams').on('value',s=>{NET.teamsOnline=s.val()||{};render()});
-  NET.ref.child('actions').remove().catch(()=>{}).then(()=>{
-    NET.ref.child('actions').on('child_added',snap=>{const d=snap.val();snap.ref.remove().catch(()=>{});onRemote(d)});
-  });
+  attachHost();
   render();
+}
+function attachHost(){
+  const ref=fdb.ref('games/'+NET.code);NET.ref=ref;NET.teamsOnline={};
+  ref.child('teams').on('value',s=>{if(NET.ref!==ref)return;NET.teamsOnline=s.val()||{};render()});
+  ref.child('actions').remove().catch(()=>{}).then(()=>{
+    ref.child('actions').on('child_added',sn=>{const d=sn.val();sn.ref.remove().catch(()=>{});if(NET.ref===ref)onRemote(d)});
+  });
+}
+function switchCode(){
+  if(MODE!=='host'||!fdb||!NET.ref)return;
+  const old=NET.ref;old.child('teams').off();old.child('actions').off();old.remove().catch(()=>{});
+  let c;do{c=genCode()}while(c===NET.code);NET.code=c;
+  try{localStorage.setItem(KEY+'-code',c)}catch(e){}
+  attachHost();
 }
 function onRemote(d){
   if(!d||!['B','S','P'].includes(d.team))return;
@@ -668,6 +684,8 @@ function renderLanding(){
     <button data-l="host">Host the game</button></div></div>`;
 }
 
+let settingsOpen=false;
+document.addEventListener('toggle',e=>{if(e.target&&e.target.id==='settingsBox')settingsOpen=e.target.open},true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.getElementById('howto').classList.remove('open')});
 document.addEventListener('click',e=>{
   const h=e.target.closest('[data-h]');const m=document.getElementById('howto');
